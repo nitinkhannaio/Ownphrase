@@ -20,12 +20,14 @@ final class RewritePanelTests: XCTestCase {
         let passage = "Can we move our call to tomorrow morning?"
         for (name, page, width, height, textSize) in [
             ("tones", PanelPage.tones(passage, true, nil), 402, 249, DynamicTypeSize.large),
-            ("large-type", .tones(String(repeating: passage, count: 85), false, "Connection lost. Try a tone again."), 375, 249, .accessibility3),
+            ("large-type", .tones(passage, false, nil), 375, 249, .accessibility3),
+            ("large-error", .tones(String(repeating: passage, count: 85), false, "Connection lost. Try a tone again."), 375, 249, .accessibility3),
             ("dark-tones", .tones(passage, true, nil), 402, 249, .large),
             ("setup", .setup("Open Ownphrase to add your API key."), 402, 249, .large),
             ("notice", .notice("Write something first", "Type a sentence or select text in your message."), 402, 249, .large),
             ("short-pass", .tones("P", false, nil), 402, 249, .large),
             ("result", .result("Could we reschedule our call for tomorrow morning?", 0, 2, true, nil), 402, 249, .large),
+            ("single-option", .result(passage, 0, 1, true, nil), 402, 249, .large),
             ("copy-result", .result(passage, 1, 2, false, nil), 402, 249, .large),
             ("landscape", .tones(passage, true, nil), 724, 181, .large),
             ("working", .working(.friendly), 402, 249, .large)

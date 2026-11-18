@@ -67,15 +67,20 @@ struct RewritePanel: View {
             case let .tones(text, selected, error):
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
-                        if let error, !size.isAccessibilitySize { Label(error, systemImage: "exclamationmark.circle").font(.subheadline) }
-                        if size.isAccessibilitySize || expanded {
-                            previewButton(text, selected: selected)
-                        } else {
-                            ViewThatFits(in: .vertical) {
-                                Text(text).font(.body).fixedSize(horizontal: false, vertical: true)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                        if let error {
+                            Label(error, systemImage: "exclamationmark.circle").font(.subheadline)
+                                .accessibilityAddTraits(.isHeader)
+                        }
+                        if !size.isAccessibilitySize || error == nil {
+                            if size.isAccessibilitySize || expanded {
                                 previewButton(text, selected: selected)
-                            }.frame(height: previewHeight).foregroundStyle(.secondary)
+                            } else {
+                                ViewThatFits(in: .vertical) {
+                                    Text(text).font(.body).fixedSize(horizontal: false, vertical: true)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    previewButton(text, selected: selected)
+                                }.frame(height: previewHeight).foregroundStyle(.secondary)
+                            }
                         }
                         if !selected && text.trimmingCharacters(in: .whitespacesAndNewlines).count < 3 {
                             Text("Select the passage in your message to rewrite it.").font(.subheadline)
@@ -97,9 +102,6 @@ struct RewritePanel: View {
                                     .accessibilityHint("Rewrite this passage with OpenAI")
                                 }
                             }
-                        }
-                        if let error, size.isAccessibilitySize {
-                            Label(error, systemImage: "exclamationmark.circle").font(.subheadline)
                         }
                     }.padding(.horizontal, 16).padding(.vertical, 8)
                 }
