@@ -142,7 +142,7 @@ struct KeyboardSetupSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                if route == .general && !setup.hasUsedFullAccess {
+                if route == .keyboardAccess || (route == .general && !setup.hasUsedFullAccess) {
                     Section("Enable the keyboard") { activationSteps }
                 }
                 Section {
@@ -169,7 +169,7 @@ struct KeyboardSetupSheet: View {
                 } footer: {
                     Text("Ownphrase stores your key in this iPhone’s Keychain and uses it to send your passage, chosen tone, and voice preferences to OpenAI.")
                 }
-                if route == .openAI || setup.hasUsedFullAccess {
+                if route == .openAI || (route == .general && setup.hasUsedFullAccess) {
                     Section {
                         DisclosureGroup("Keyboard setup") {
                             if setup.hasUsedFullAccess {

@@ -17,9 +17,12 @@ struct OwnphraseApp: App {
                 }
                 .task { notebook.refresh(); setup.consumeRequest() }
                 .onOpenURL { url in
-                    if url.scheme == "ownphrase", url.host == "setup", url.path == "/openai" {
-                        setup.consumeRequest()
-                        setup.route = .openAI
+                    guard url.scheme == "ownphrase", url.host == "setup" else { return }
+                    setup.consumeRequest()
+                    switch url.path {
+                    case "/openai": setup.route = .openAI
+                    case "/keyboard": setup.route = .keyboardAccess
+                    default: break
                     }
                 }
         }
@@ -29,7 +32,7 @@ struct OwnphraseApp: App {
 @MainActor
 final class KeyboardSetup: ObservableObject {
     enum Route: String, Identifiable {
-        case general, openAI
+        case general, openAI, keyboardAccess
         var id: String { rawValue }
     }
 

@@ -55,7 +55,7 @@ extension KeyboardViewController {
         guard !privateField else { presentPanel(.notice("Private field", "Return to typing to continue in this field.")); return .handled }
         guard hasFullAccess else {
             presentPanel(.notice("Allow Full Access", "In iPhone Settings, open Apps → Ownphrase → Keyboards and turn on Allow Full Access. This lets you send a rewrite to OpenAI."))
-            return .handled
+            return .systemAction(URL(string: "ownphrase://setup/keyboard")!)
         }
         do {
             guard try APIKeyStore.load() != nil else { requestKeySetup(); return .systemAction }
