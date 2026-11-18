@@ -21,6 +21,16 @@ final class RewriteSourceTests: XCTestCase {
         XCTAssertFalse(source.canReplace(document: document, selection: "hello", before: "Moved elsewhere\n", after: " next"))
     }
 
+    func testShortImplicitFragmentsNeedSelectionAndDocumentEdgesCanBeEmpty() throws {
+        let doc = UUID()
+        let partial = try XCTUnwrap(RewriteSource(document: doc, selection: nil, before: "P", after: nil))
+        XCTAssertTrue(partial.needsSelection)
+        let selected = try XCTUnwrap(RewriteSource(document: doc, selection: "P", before: nil, after: ""))
+        XCTAssertFalse(selected.needsSelection)
+        XCTAssertTrue(selected.canReplace(document: doc, selection: "P", before: "", after: nil))
+        XCTAssertFalse(selected.canReplace(document: doc, selection: "P", before: "other", after: nil))
+    }
+
     func testEmptyOrOversizePassagesRequireAnExplicitSmallerSelection() {
         for draft in ["", "  ", "old paragraph\n", String(repeating: "a", count: 4001)] {
             XCTAssertNil(RewriteSource(document: UUID(), selection: nil, before: draft, after: nil))

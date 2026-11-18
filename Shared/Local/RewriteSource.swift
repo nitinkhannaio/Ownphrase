@@ -23,10 +23,12 @@ struct RewriteSource {
         text = candidate
     }
 
+    var needsSelection: Bool { !selected && text.trimmingCharacters(in: .whitespacesAndNewlines).count < 3 }
+
     func canReplace(document: UUID, selection: String?, before: String?, after: String?) -> Bool {
         guard document == self.document, selection?.utf8.elementsEqual(text.utf8) == true,
-              after == self.after else { return false }
-        if selected { return self.before == before }
+              (after ?? "") == (self.after ?? "") else { return false }
+        if selected { return (self.before ?? "") == (before ?? "") }
         // A host may expose more leading context once the user selects a previously unselected span.
         let leadingAnchor = String((self.before ?? "").dropLast(text.count).suffix(16))
         return (before ?? "").hasSuffix(leadingAnchor)

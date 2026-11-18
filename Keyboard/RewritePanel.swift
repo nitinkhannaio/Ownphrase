@@ -51,7 +51,7 @@ struct RewritePanel: View {
             HStack(spacing: 8) {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).font(.headline).accessibilityAddTraits(.isHeader)
-                    if case .tones(_, let selected, _) = page {
+                    if !size.isAccessibilitySize, case .tones(_, let selected, _) = page {
                         Text(selected ? "Selected text" : "Text before cursor").font(.caption).foregroundStyle(.secondary)
                     }
                 }
@@ -67,8 +67,8 @@ struct RewritePanel: View {
             case let .tones(text, selected, error):
                 ScrollView {
                     VStack(alignment: .leading, spacing: 8) {
-                        if let error { Label(error, systemImage: "exclamationmark.circle").font(.subheadline) }
-                        if expanded {
+                        if let error, !size.isAccessibilitySize { Label(error, systemImage: "exclamationmark.circle").font(.subheadline) }
+                        if size.isAccessibilitySize || expanded {
                             previewButton(text, selected: selected)
                         } else {
                             ViewThatFits(in: .vertical) {
@@ -77,19 +77,29 @@ struct RewritePanel: View {
                                 previewButton(text, selected: selected)
                             }.frame(height: previewHeight).foregroundStyle(.secondary)
                         }
-                        Text(!selected && text.count < 3 ? "To rewrite more, select the passage in your message." : "Choose a tone to rewrite with OpenAI.").font(.footnote).foregroundStyle(.secondary)
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: size.isAccessibilitySize ? 165 : 102), spacing: 8)], spacing: 8) {
-                            ForEach(RewriteTone.allCases) { tone in
-                                Button { choose(tone) } label: {
-                                    Text(tone.rawValue).font(.subheadline.weight(.semibold))
-                                        .multilineTextAlignment(.center).frame(maxWidth: .infinity, minHeight: 44)
-                                        .padding(.horizontal, 2)
-                                }
-                                .buttonStyle(.plain)
-                                .foregroundStyle(tone == .myVoice ? Color.white : Color.primary)
-                                .background(tone == .myVoice ? Color(uiColor: .systemIndigo) : Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10))
-                                .accessibilityHint("Rewrite this passage with OpenAI")
+                        if !selected && text.trimmingCharacters(in: .whitespacesAndNewlines).count < 3 {
+                            Text("Select the passage in your message to rewrite it.").font(.subheadline)
+                        } else {
+                            if !size.isAccessibilitySize {
+                                Text("Choose a tone to rewrite with OpenAI.").font(.footnote).foregroundStyle(.secondary)
                             }
+
+                            LazyVGrid(columns: size.isAccessibilitySize ? [GridItem(.flexible())] : [GridItem(.adaptive(minimum: 102), spacing: 8)], spacing: 8) {
+                                ForEach(RewriteTone.allCases) { tone in
+                                    Button { choose(tone) } label: {
+                                        Text(tone.rawValue).font(.subheadline.weight(.semibold))
+                                            .multilineTextAlignment(.center).frame(maxWidth: .infinity, minHeight: 44)
+                                            .padding(.horizontal, 2)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .foregroundStyle(tone == .myVoice ? Color.white : Color.primary)
+                                    .background(tone == .myVoice ? Color(uiColor: .systemIndigo) : Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 61/255, alpha: 1) : .white }), in: RoundedRectangle(cornerRadius: 10))
+                                    .accessibilityHint("Rewrite this passage with OpenAI")
+                                }
+                            }
+                        }
+                        if let error, size.isAccessibilitySize {
+                            Label(error, systemImage: "exclamationmark.circle").font(.subheadline)
                         }
                     }.padding(.horizontal, 16).padding(.vertical, 8)
                 }
@@ -130,7 +140,7 @@ struct RewritePanel: View {
     private func previewButton(_ text: String, selected: Bool) -> some View {
         Button { expanded.toggle() } label: {
             HStack(spacing: 8) {
-                Text(text).multilineTextAlignment(.leading).lineLimit(expanded ? nil : 2)
+                Text(text).multilineTextAlignment(.leading).lineLimit(expanded ? nil : (size.isAccessibilitySize ? 1 : 2))
                 Spacer(minLength: 0)
                 Image(systemName: expanded ? "chevron.up" : "chevron.down").font(.caption)
             }.frame(minHeight: 44)

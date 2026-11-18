@@ -186,7 +186,7 @@ struct KeyboardSetupSheet: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
         .onAppear {
-            do { try notebook.refreshKeyStatus() }
+            do { try notebook.refreshKeyStatus(); enteringKey = route == .openAI }
             catch { failure = error.localizedDescription }
         }
         .onChange(of: phase) { _, next in
@@ -200,7 +200,7 @@ struct KeyboardSetupSheet: View {
     }
 
     @ViewBuilder private var activationSteps: some View {
-        Text("In iPhone Settings, open General → Keyboard → Keyboards → Add New Keyboard. Choose Ownphrase, then turn on Allow Full Access.")
+        Text("Open Ownphrase settings below, tap Keyboards, and enable Ownphrase and Allow Full Access. If Keyboards is missing, add Ownphrase under General → Keyboard → Keyboards → Add New Keyboard.")
         Text("Full Access lets Ownphrase use your OpenAI key for rewrites and save lessons in your local notebook.")
             .foregroundStyle(.secondary)
         Text("Hold the globe in a text field to choose Ownphrase. Use Edit in the Keyboards list to put it first.")

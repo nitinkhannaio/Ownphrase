@@ -29,8 +29,8 @@ extension KeyboardViewController {
         // Resolve at tap time. A user can replace or remove the key while the
         // host keeps its keyboard process and first responder alive.
         let link = SetupLink(action: { [weak self] in self?.beginRewrite() ?? .discarded }) {
-            Image(systemName: "wand.and.stars").font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
+            Image(systemName: "wand.and.stars").font(.system(size: 16, weight: .medium))
+                .foregroundStyle(Color(uiColor: .label)).frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle()).accessibilityLabel("Rewrite")
         }
         return UIHostingConfiguration { link }.margins(.all, 0).makeContentView()
@@ -42,8 +42,8 @@ extension KeyboardViewController {
         CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),
             CFNotificationName("io.nitinkhanna.ownphrase.setup" as CFString), nil, nil, true)
         // Give the URL tap time to leave this host before displaying its fallback.
-        DispatchQueue.main.async { [weak self] in
-            guard let self, self.viewIfLoaded?.window != nil else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) { [weak self] in
+            guard let self, self.viewIfLoaded?.window != nil, !self.privateField else { return }
             self.presentPanel(.setup("Add your API key in Ownphrase. If the app doesn’t open here, open it from your Home Screen."))
         }
     }
@@ -109,7 +109,7 @@ extension KeyboardViewController {
     func generate(_ tone: RewriteTone) {
         guard let source = review, request == nil else { return }
         guard hasFullAccess, !privateField, source.document == textDocumentProxy.documentIdentifier else { endReview(); return }
-        guard refreshPreviewIfChanged() == false else { return }
+        guard !refreshPreviewIfChanged(), !source.needsSelection else { return }
         lastMessage = nil
         presentPanel(.working(tone))
         request = Task { [weak self] in
