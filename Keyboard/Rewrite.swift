@@ -1,4 +1,5 @@
 import UIKit
+import SwiftUI
 
 private extension RewriteSource {
     @MainActor
@@ -19,24 +20,59 @@ extension KeyboardViewController {
         request?.cancel()
         request = nil
         review = nil
-        instruction = nil
-        rewriteInstruction = ""
         options = []
+        optionIndex = 0
         lastMessage = nil
     }
 
-    func beginRewrite() {
+    func makeMagicControl() -> UIView {
+        // Resolve at tap time. A user can replace or remove the key while the
+        // host keeps its keyboard process and first responder alive.
+        let link = SetupLink(action: { [weak self] in self?.beginRewrite() ?? .discarded }) {
+            Image(systemName: "wand.and.stars").font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle()).accessibilityLabel("Rewrite")
+        }
+        return UIHostingConfiguration { link }.margins(.all, 0).makeContentView()
+    }
+
+    func requestKeySetup() {
+        guard !privateField else { return }
+        UserDefaults(suiteName: "group.io.nitinkhanna.ownphrase")?.set(true, forKey: "pendingKeySetup")
+        CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),
+            CFNotificationName("io.nitinkhanna.ownphrase.setup" as CFString), nil, nil, true)
+        // Give the URL tap time to leave this host before displaying its fallback.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.viewIfLoaded?.window != nil else { return }
+            self.presentPanel(.setup("Add your API key in Ownphrase. If the app doesn’t open here, open it from your Home Screen."))
+        }
+    }
+
+    func beginRewrite() -> OpenURLAction.Result {
         commitComposition()
         finishObservation()
         resetReview()
-        if privateField { showNotice("Rewriting is unavailable in this field."); return }
-        guard hasFullAccess else { showNotice("Enable Allow Full Access in iPhone keyboard settings to use OpenAI rewrites."); return }
+        guard !privateField else { presentPanel(.notice("Private field", "Return to typing to continue in this field.")); return .handled }
+        guard hasFullAccess else {
+            presentPanel(.notice("Allow Full Access", "In iPhone Settings, open Apps → Ownphrase → Keyboards and turn on Allow Full Access. This lets you send a rewrite to OpenAI."))
+            return .handled
+        }
+        do {
+            guard try APIKeyStore.load() != nil else { requestKeySetup(); return .systemAction }
+        } catch {
+            presentPanel(.notice("Key unavailable", "Unlock your iPhone and try again. Your draft is still here."))
+            return .handled
+        }
         guard let source = RewriteSource(proxy: textDocumentProxy) else {
-            showNotice("Select a passage of up to 4,000 characters in your message, then tap Rewrite.")
-            return
+            let selection = textDocumentProxy.selectedText ?? ""
+            let passage = selection.isEmpty ? (textDocumentProxy.documentContextBeforeInput ?? "").components(separatedBy: "\n").last ?? "" : selection
+            if passage.count > RewriteSource.maximumCharacters { presentPanel(.notice("Choose a shorter passage", "Select up to 4,000 characters, then tap Rewrite.")) }
+            else { presentPanel(.notice("Write something first", "Type a sentence or select text in your message, then tap Rewrite.")) }
+            return .handled
         }
         review = source
         showReview()
+        return .handled
     }
 
     func endReview() {
@@ -45,156 +81,135 @@ extension KeyboardViewController {
         showKeys()
     }
 
-    func showNotice(_ message: String) {
+    func presentPanel(_ page: PanelPage) {
+        panelActive = true
+        if case .tones = page { previewingSource = true } else { previewingSource = false }
         clearContent()
-        content.addArrangedSubview(panelHeader("Rewrite"))
-        content.addArrangedSubview(scrollArea([bodyLabel(message)]))
-    }
-
-    func panelHeader(_ title: String) -> UIStackView {
-        let row = UIStackView()
-        row.alignment = .center
-        row.spacing = 6
-        row.isLayoutMarginsRelativeArrangement = true
-        row.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 2)
-        let label = UILabel()
-        label.font = .preferredFont(forTextStyle: .headline)
-        label.text = title
-        row.addArrangedSubview(label)
-        let back = button("Back to typing", symbol: "keyboard", special: true) { [weak self] in self?.endReview() }
-        back.widthAnchor.constraint(equalToConstant: 44).isActive = true
-        row.addArrangedSubview(back)
-        row.heightAnchor.constraint(equalToConstant: 36).isActive = true
-        return row
-    }
-
-    func bodyLabel(_ text: String, secondary: Bool = false) -> UILabel {
-        let label = UILabel()
-        label.text = text
-        label.numberOfLines = 0
-        label.font = .preferredFont(forTextStyle: secondary ? .footnote : .body)
-        label.textColor = secondary ? .secondaryLabel : .label
-        return label
-    }
-
-    func scrollArea(_ views: [UIView]) -> UIScrollView {
-        let scroll = UIScrollView()
-        scroll.alwaysBounceVertical = true
-        let stack = UIStackView(arrangedSubviews: views)
-        stack.axis = .vertical
-        stack.spacing = 8
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        scroll.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 8),
-            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -8),
-            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 2),
-            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -6),
-            stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -16)
-        ])
-        return scroll
+        let panel = RewritePanel(page: page, close: { [weak self] in self?.endReview() },
+            choose: { [weak self] in self?.generate($0) },
+            change: { [weak self] in self?.showReview() },
+            move: { [weak self] index in self?.optionIndex = index; self?.lastMessage = nil; self?.showOptions() },
+            use: { [weak self] in self?.apply() }, copy: { [weak self] in self?.copyOption() },
+            openSetup: { [weak self] in self?.requestKeySetup() })
+        let host = UIHostingController(rootView: panel)
+        addChild(host)
+        host.view.backgroundColor = .clear
+        content.addArrangedSubview(host.view)
+        host.didMove(toParent: self)
+        panelHost = host
+        UIAccessibility.post(notification: .screenChanged, argument: nil)
     }
 
     func showReview() {
         guard let source = review else { endReview(); return }
-        if let instruction { rewriteInstruction = instruction; self.instruction = nil }
-        clearContent()
-        content.addArrangedSubview(panelHeader("Rewrite in my voice"))
-        var items: [UIView] = [bodyLabel(source.selected ? "Selected passage" : "Text before the cursor", secondary: true), bodyLabel(source.text)]
-        if !source.selected {
-            items.append(bodyLabel("To apply a rewrite, select this exact passage in your message. You can also select it before tapping Rewrite.", secondary: true))
-        }
-        if let lastMessage { items.append(bodyLabel(lastMessage)) }
-        let customize = button(rewriteInstruction.isEmpty ? "Add an instruction…" : rewriteInstruction, special: true) { [weak self] in
-            guard let self else { return }
-            instruction = rewriteInstruction
-            layout = .letters
-            shift = .off
-            showKeys()
-        }
-        customize.heightAnchor.constraint(greaterThanOrEqualToConstant: 36).isActive = true
-        items.append(customize)
-        content.addArrangedSubview(scrollArea(items))
-        let generate = button("Generate rewrites") { [weak self] in self?.generate() }
-        generate.heightAnchor.constraint(equalToConstant: 40).isActive = true
-        content.addArrangedSubview(generate)
+        options = []
+        presentPanel(.tones(source.text, source.selected, lastMessage))
     }
 
-    func generate() {
+    func generate(_ tone: RewriteTone) {
         guard let source = review, request == nil else { return }
-        guard hasFullAccess, !privateField, source.document == textDocumentProxy.documentIdentifier else {
-            showNotice("The field or its permissions changed. Return to typing and select the passage again.")
-            return
-        }
-        clearContent()
-        content.addArrangedSubview(panelHeader("Rewriting…"))
-        let spinner = UIActivityIndicatorView(style: .medium)
-        spinner.startAnimating()
-        content.addArrangedSubview(spinner)
-        let prompt = rewriteInstruction.isEmpty ? "Polish this passage in my voice. Preserve its meaning and facts." : rewriteInstruction
+        guard hasFullAccess, !privateField, source.document == textDocumentProxy.documentIdentifier else { endReview(); return }
+        guard refreshPreviewIfChanged() == false else { return }
+        lastMessage = nil
+        presentPanel(.working(tone))
         request = Task { [weak self] in
             guard let self else { return }
             do {
-                let profile = try store.profile()
-                let result = try await OpenAIClient.rewrite(text: source.text, instruction: prompt, profile: profile)
+                let result = try await OpenAIClient.rewrite(text: source.text, instruction: tone.prompt, profile: store.profile())
                 try Task.checkCancellation()
-                guard !result.isEmpty else { throw KeyboardRewriteError.empty }
+                guard hasFullAccess, !privateField, source.document == textDocumentProxy.documentIdentifier else {
+                    endReview()
+                    return
+                }
+                guard !result.isEmpty else { throw ModelRequestError.invalidResponse }
                 options = result
-                lastMessage = nil
+                optionIndex = 0
                 request = nil
                 showOptions()
             } catch {
                 guard !Task.isCancelled else { return }
-                lastMessage = error.localizedDescription
                 request = nil
-                showReview()
+                if case ModelRequestError.invalidKey = error {
+                    presentPanel(.setup("OpenAI rejected this key. Open Ownphrase to replace it."))
+                } else if case ModelRequestError.missingKey = error {
+                    presentPanel(.setup("Open Ownphrase to add your API key."))
+                } else {
+                    lastMessage = error.localizedDescription
+                    showReview()
+                }
             }
         }
     }
 
-    func showOptions() {
-        guard let source = review else { return }
-        clearContent()
-        content.addArrangedSubview(panelHeader("Choose a rewrite"))
-        var items: [UIView] = []
-        if let lastMessage { items.append(bodyLabel(lastMessage)) }
-        if !source.canReplace(textDocumentProxy) {
-            items.append(bodyLabel("Select the original passage in your message, then tap Use on the version you want.", secondary: true))
+    @discardableResult
+    func refreshPreviewIfChanged() -> Bool {
+        guard previewingSource, let previous = review else { return false }
+        guard let current = RewriteSource(proxy: textDocumentProxy), current.document == previous.document else {
+            endReview()
+            return true
         }
-        for (index, option) in options.enumerated() {
-            items.append(bodyLabel(option.text))
-            let use = button("Use version \(index + 1)") { [weak self] in self?.apply(option) }
-            use.heightAnchor.constraint(equalToConstant: 36).isActive = true
-            items.append(use)
-        }
-        let revise = button("Change instruction", special: true) { [weak self] in
-            self?.lastMessage = nil
-            self?.showReview()
-        }
-        revise.heightAnchor.constraint(equalToConstant: 36).isActive = true
-        items.append(revise)
-        content.addArrangedSubview(scrollArea(items))
+        guard previous.text != current.text || previous.selected != current.selected else { return false }
+        review = current
+        lastMessage = nil
+        showReview()
+        return true
     }
 
-    func apply(_ option: RewriteOption) {
-        guard let source = review, !privateField, source.canReplace(textDocumentProxy) else {
-            lastMessage = "The original passage must still be selected in the same field. If you edited it, start a new rewrite."
-            showOptions()
-            return
-        }
-        // One native replacement avoids partial erasure in apps that return delayed proxy context.
+    func refreshReplacementState() {
+        guard panelActive, let source = review else { return }
+        if privateField || source.document != textDocumentProxy.documentIdentifier { endReview(); return }
+        if previewingSource { refreshPreviewIfChanged(); return }
+        guard !options.isEmpty else { return }
+        if selectionWasValid != source.canReplace(textDocumentProxy) { showOptions() }
+    }
+
+    func showOptions() {
+        guard let source = review, options.indices.contains(optionIndex) else { return }
+        selectionWasValid = source.canReplace(textDocumentProxy)
+        presentPanel(.result(options[optionIndex].text, optionIndex, options.count, selectionWasValid, lastMessage))
+    }
+
+    func copyOption() {
+        guard !privateField, hasFullAccess, review?.document == textDocumentProxy.documentIdentifier,
+              options.indices.contains(optionIndex) else { endReview(); return }
+        UIPasteboard.general.setItems([["public.utf8-plain-text": options[optionIndex].text]], options: [.localOnly: true])
+        endReview()
+        let feedback = UILabel()
+        feedback.text = "Copied. Paste in your message."
+        feedback.font = .preferredFont(forTextStyle: .subheadline)
+        feedback.textColor = .label
+        feedback.textAlignment = .center
+        feedback.backgroundColor = .secondarySystemGroupedBackground
+        feedback.layer.cornerRadius = 8
+        feedback.clipsToBounds = true
+        feedback.translatesAutoresizingMaskIntoConstraints = false
+        feedback.isUserInteractionEnabled = false
+        let lastSuggestion = suggestionButtons.last
+        toolbar.addSubview(feedback)
+        NSLayoutConstraint.activate([
+            feedback.leadingAnchor.constraint(equalTo: toolbar.leadingAnchor, constant: 6),
+            feedback.trailingAnchor.constraint(equalTo: lastSuggestion?.trailingAnchor ?? toolbar.trailingAnchor),
+            feedback.topAnchor.constraint(equalTo: toolbar.topAnchor, constant: 2),
+            feedback.bottomAnchor.constraint(equalTo: toolbar.bottomAnchor, constant: -2)
+        ])
+        typingFeedback = feedback
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak feedback] in feedback?.removeFromSuperview() }
+        UIAccessibility.post(notification: .announcement, argument: feedback.text)
+    }
+
+    func apply() {
+        guard hasFullAccess, !privateField, let source = review, source.document == textDocumentProxy.documentIdentifier,
+              options.indices.contains(optionIndex) else { endReview(); return }
+        guard source.canReplace(textDocumentProxy) else { showOptions(); return }
+        let option = options[optionIndex]
+        options = []
         textDocumentProxy.insertText(option.text)
         do {
             try store.record(original: source.text, accepted: option)
             endReview()
         } catch {
             resetReview()
-            showNotice("The rewrite was inserted. Ownphrase couldn’t save this example for learning.")
+            presentPanel(.notice("Rewrite inserted", "Ownphrase couldn’t save this example to your notebook."))
         }
     }
-}
-
-private enum KeyboardRewriteError: LocalizedError {
-    case empty
-    var errorDescription: String? { "No rewrite was returned. Try again." }
 }

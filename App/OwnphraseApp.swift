@@ -1,19 +1,66 @@
 import SwiftUI
+import CoreFoundation
 
 @main
 struct OwnphraseApp: App {
     @Environment(\.scenePhase) private var phase
     @StateObject private var notebook = Notebook()
+    @StateObject private var setup = KeyboardSetup()
 
     var body: some Scene {
         WindowGroup {
             HomeView()
                 .environmentObject(notebook)
+                .environmentObject(setup)
                 .onChange(of: phase) { _, newValue in
-                    if newValue == .active { notebook.refresh() }
+                    if newValue == .active { notebook.refresh(); setup.consumeRequest() }
                 }
-                .task { notebook.refresh() }
+                .task { notebook.refresh(); setup.consumeRequest() }
+                .onOpenURL { url in
+                    if url.scheme == "ownphrase", url.host == "setup", url.path == "/openai" {
+                        setup.consumeRequest()
+                        setup.route = .openAI
+                    }
+                }
         }
+    }
+}
+
+@MainActor
+final class KeyboardSetup: ObservableObject {
+    enum Route: String, Identifiable {
+        case general, openAI
+        var id: String { rawValue }
+    }
+
+    @Published var route: Route?
+    @Published private(set) var hasUsedFullAccess = false
+    static let requested = Notification.Name("OwnphraseKeyboardSetupRequested")
+    private let signal = "io.nitinkhanna.ownphrase.setup" as CFString
+    private let defaults = UserDefaults(suiteName: "group.io.nitinkhanna.ownphrase")
+
+    init() {
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(), Unmanaged.passUnretained(self).toOpaque(),
+            { _, _, _, _, _ in
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: KeyboardSetup.requested, object: nil)
+                }
+            }, signal, nil, .deliverImmediately
+        )
+    }
+
+    deinit {
+        CFNotificationCenterRemoveEveryObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(), Unmanaged.passUnretained(self).toOpaque()
+        )
+    }
+
+    func consumeRequest() {
+        hasUsedFullAccess = defaults?.bool(forKey: "lastSeenWithFullAccess") == true
+        guard defaults?.bool(forKey: "pendingKeySetup") == true else { return }
+        defaults?.removeObject(forKey: "pendingKeySetup")
+        route = .openAI
     }
 }
 
@@ -25,13 +72,17 @@ final class Notebook: ObservableObject {
     @Published private(set) var readError: String?
     @Published private(set) var hasKey = false
 
+    func refreshKeyStatus() throws {
+        hasKey = try APIKeyStore.load() != nil
+    }
+
     func refresh() {
         do {
+            try refreshKeyStatus()
             let store = OwnStore()
             entries = try store.history()
             lessons = try store.daily(on: Date())
             profile = try store.profile()
-            hasKey = try APIKeyStore.load() != nil
             readError = nil
         } catch {
             readError = error.localizedDescription
@@ -42,6 +93,7 @@ final class Notebook: ObservableObject {
 enum SectionTab { case today, notebook, settings }
 
 struct HomeView: View {
+    @EnvironmentObject private var setup: KeyboardSetup
     @EnvironmentObject private var notebook: Notebook
     @State private var tab = SectionTab.today
 
@@ -49,7 +101,7 @@ struct HomeView: View {
         TabView(selection: $tab) {
             Tab("Today", systemImage: "sun.max", value: .today) {
                 NavigationStack {
-                    TodayView(openSettings: { tab = .settings })
+                    TodayView()
                 }
             }
             Tab("Notebook", systemImage: "book.pages", value: .notebook) {
@@ -59,24 +111,32 @@ struct HomeView: View {
                 NavigationStack { SettingsView() }
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: KeyboardSetup.requested)) { _ in setup.consumeRequest() }
+        .sheet(item: $setup.route) { route in KeyboardSetupSheet(route: route) }
         .tint(.accentColor)
-        .onChange(of: tab) { notebook.refresh() }
+        .onChange(of: tab) { notebook.refresh(); setup.consumeRequest() }
     }
 }
 
 struct TodayView: View {
     @EnvironmentObject private var notebook: Notebook
-    let openSettings: () -> Void
+    @EnvironmentObject private var setup: KeyboardSetup
 
     var body: some View {
         List {
             if let message = notebook.readError {
                 Section { Label(message, systemImage: "exclamationmark.triangle") }
             }
-            if !notebook.hasKey {
+            if !setup.hasUsedFullAccess || !notebook.hasKey {
                 Section {
-                    Button(action: openSettings) {
-                        Label("Set up your keyboard", systemImage: "keyboard")
+                    if setup.hasUsedFullAccess {
+                        Button { setup.route = .openAI } label: {
+                            Label("Add your OpenAI key", systemImage: "key")
+                        }
+                    } else {
+                        Button { setup.route = .general } label: {
+                            Label("Set up your keyboard", systemImage: "keyboard")
+                        }
                     }
                 }
             }
@@ -200,6 +260,8 @@ struct Passage: View {
 }
 
 struct PlaygroundView: View {
+    @EnvironmentObject private var setup: KeyboardSetup
+    @Environment(\.scenePhase) private var phase
     @EnvironmentObject private var notebook: Notebook
     @State private var draft = ""
     @FocusState private var focused: Bool
@@ -221,6 +283,13 @@ struct PlaygroundView: View {
         .padding()
         .navigationTitle("Try the keyboard")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: focused && phase == .active && setup.route == nil) {
+            guard focused && phase == .active && setup.route == nil else { return }
+            while !Task.isCancelled {
+                setup.consumeRequest()
+                do { try await Task.sleep(for: .seconds(1)) } catch { return }
+            }
+        }
         .onDisappear { notebook.refresh() }
     }
 }

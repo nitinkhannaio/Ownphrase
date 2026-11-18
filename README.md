@@ -6,7 +6,7 @@ Ownphrase is a personal English writing agent for iPhone. Its primary input is a
 
 - Ordinary typing updates on-device counts of writing traits, common word choices, and a small set of English patterns. The keyboard observes passages authored through its keys. Unaccepted ordinary passages are transient.
 - When Apple’s on-device language model is available, it can also classify a passage by register and communication style. Only bounded labels and deduplicated evidence enter this memory. Context is an estimate. Ambiguous passages use a general register.
-- Rewrite previews the passage and accepts a custom instruction. OpenAI receives the passage, instruction, and a bounded summary of voice preferences. Choosing an option saves the original and the accepted rewrite in the notebook. The next request uses the updated voice profile. Select the passage in the host app to apply an option.
+- Rewrite previews the text and offers My voice, Friendly, Professional, Casual, Fix grammar, and Shorter. Tapping a preset sends the preview, the preset instruction, and a bounded voice summary to OpenAI. A missing key routes directly to setup on supported hosts. Choosing an option saves the original and the accepted rewrite in the notebook. The next request uses the updated voice profile. Select the original to replace it, or copy a rewrite to paste yourself. Copying alone does not add it to the notebook.
 - Today groups correction examples and highlights recurring word choices. A local reminder can show a lesson topic at the time you choose when that day's writing provides evidence before the reminder hour.
 
 ## Run on your iPhone

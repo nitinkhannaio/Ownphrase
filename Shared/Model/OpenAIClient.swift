@@ -13,7 +13,7 @@ enum ModelRequestError: LocalizedError {
         switch self {
         case .invalidKey: return "Check your OpenAI API key in Ownphrase."
         case .missingKey: return "Add your OpenAI API key in Ownphrase to rewrite."
-        case .invalidDraft: return "Choose a passage between 1 and 6,000 characters."
+        case .invalidDraft: return "Choose a passage between 1 and 4,000 characters."
         case .invalidResponse: return "The rewrite was incomplete. Your draft is still here."
         case .refused: return "The model declined this rewrite."
         case .rateLimit: return "OpenAI’s usage limit was reached. Check your API billing or try again later."
@@ -54,7 +54,7 @@ enum OpenAIClient {
     }
 
     static func makeRequest(text: String, instruction: String, profile: String, key: String) throws -> URLRequest {
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, text.count <= 6000 else {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, text.count <= RewriteSource.maximumCharacters else {
             throw ModelRequestError.invalidDraft
         }
         let fields = ["text", "lesson", "preference", "context"]

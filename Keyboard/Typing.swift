@@ -2,7 +2,7 @@ import UIKit
 
 extension KeyboardViewController {
     var allowsWordHelp: Bool {
-        guard !privateField, instruction == nil, textDocumentProxy.autocorrectionType != .no else { return false }
+        guard !privateField, textDocumentProxy.autocorrectionType != .no else { return false }
         switch observedKeyboardType {
         case .emailAddress, .URL, .numberPad, .decimalPad, .asciiCapableNumberPad, .twitter: return false
         default: return true
@@ -27,7 +27,6 @@ extension KeyboardViewController {
 
     func updateCapitalization() {
         guard shift != .locked else { return }
-        if instruction != nil { return }
         let before = textDocumentProxy.documentContextBeforeInput ?? ""
         switch textDocumentProxy.autocapitalizationType ?? .sentences {
         case .none: shift = .off
@@ -51,57 +50,47 @@ extension KeyboardViewController {
     }
 
     func refreshTyping() {
-        if instruction != nil {
-            if let label = toolbar.arrangedSubviews.first as? UILabel {
-                label.text = instruction?.isEmpty == false ? instruction : "Type an instruction"
-            }
+        let suggestions: [String]
+        if let word = activeComposition, word.last?.isLetter == true {
+            suggestions = words(for: word).suggestions
         } else {
-            let suggestions: [String]
-            if let word = activeComposition, word.last?.isLetter == true {
-                suggestions = words(for: word).suggestions
-            } else {
-                suggestions = nextWords()
-            }
-            for (index, key) in suggestionButtons.enumerated() {
-                let value = index < suggestions.count ? suggestions[index] : ""
-                key.setTitle(value, for: .normal)
-                key.accessibilityLabel = value
-                key.isEnabled = !value.isEmpty
-                key.isAccessibilityElement = !value.isEmpty
-            }
+            suggestions = nextWords()
+        }
+        for (index, key) in suggestionButtons.enumerated() {
+            let value = index < suggestions.count ? suggestions[index] : ""
+            key.setTitle(value, for: .normal)
+            key.accessibilityLabel = value
+            key.isEnabled = !value.isEmpty
+            key.isAccessibilityElement = !value.isEmpty
         }
         updateLetterKeys()
     }
 
     func type(_ value: String) {
-        if instruction != nil {
-            if (instruction?.count ?? 0) + value.count <= 300 { instruction?.append(value) }
-            if shift == .once { shift = .off }
+        typingFeedback?.removeFromSuperview()
+        let proxy = textDocumentProxy
+        let document = proxy.documentIdentifier
+        if authoredDocument != document || !matchesAuthoredSuffix || !(proxy.selectedText ?? "").isEmpty { authored = "" }
+        authoredDocument = document
+        // Track only this keyboard’s current English word for suggestions.
+        if allowsWordHelp, value.count == 1, value.first?.isLetter == true,
+           (proxy.selectedText ?? "").isEmpty {
+            let prior = activeComposition
+            let word = prior.flatMap { $0.allSatisfy({ $0.isLetter }) ? $0 : nil } ?? ""
+            if word.isEmpty { commitComposition() }
+            mark(word + value)
         } else {
-            let proxy = textDocumentProxy
-            let document = proxy.documentIdentifier
-            if authoredDocument != document || !matchesAuthoredSuffix || !(proxy.selectedText ?? "").isEmpty { authored = "" }
-            authoredDocument = document
-            // Track only this keyboard’s current English word for suggestions.
-            if allowsWordHelp, value.count == 1, value.first?.isLetter == true,
-               (proxy.selectedText ?? "").isEmpty {
-                let prior = activeComposition
-                let word = prior.flatMap { $0.allSatisfy({ $0.isLetter }) ? $0 : nil } ?? ""
-                if word.isEmpty { commitComposition() }
-                mark(word + value)
-            } else {
-                commitComposition()
-                proxy.insertText(value)
-            }
-            if !privateField && hasFullAccess && (value != "\n") {
-                authored += value
-                if authored.count >= 512 { finishObservation() }
-            }
-            if value == " " && authored.trimmingCharacters(in: .whitespaces).last.map({ ".!?".contains($0) }) == true {
-                finishObservation()
-            }
-            updateCapitalization()
+            commitComposition()
+            proxy.insertText(value)
         }
+        if !privateField && hasFullAccess && (value != "\n") {
+            authored += value
+            if authored.count >= 512 { finishObservation() }
+        }
+        if value == " " && authored.trimmingCharacters(in: .whitespaces).last.map({ ".!?".contains($0) }) == true {
+            finishObservation()
+        }
+        updateCapitalization()
         refreshTyping()
     }
 
@@ -120,11 +109,6 @@ extension KeyboardViewController {
     }
 
     func erase() {
-        if instruction != nil {
-            if instruction?.isEmpty == false { instruction?.removeLast() }
-            refreshTyping()
-            return
-        }
         let proxy = textDocumentProxy
         if let current = activeComposition, let spelling = originalSpelling, current.hasSuffix(" ") {
             mark(spelling)
@@ -147,7 +131,6 @@ extension KeyboardViewController {
     }
 
     func space() {
-        if instruction != nil { type(" "); return }
         if layout == .numbers || layout == .symbols {
             type(" ")
             layout = .letters

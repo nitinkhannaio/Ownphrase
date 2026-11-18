@@ -7,7 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		038C4E18CE190A742FAA5381 /* RewritePanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B87792050BC0DC09E19D3D96 /* RewritePanelTests.swift */; };
 		0A014F05F51A59CB16C981C2 /* LessonNotice.swift in Sources */ = {isa = PBXBuildFile; fileRef = A53716355A0F0C2872ACED5F /* LessonNotice.swift */; };
+		10D34AB69CCB552289BD293B /* RewritePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D3369AF1A05A0C37FE51D9D /* RewritePanel.swift */; };
 		201EA6AC55BCFF95B980A152 /* OwnStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CA1DFA8B1CD4503FE54E4E8 /* OwnStore.swift */; };
 		2728ADB60FDE47A569999E1E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8137D37CEB43594E16E4C1B /* SettingsView.swift */; };
 		2B85F4E6CDEDC55AD46D3651 /* KeyboardViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57BD427DCD492BE6A52ECECE /* KeyboardViewController.swift */; };
@@ -18,6 +20,7 @@
 		5225B9F93F27BC207BA5CFAF /* LocalReflectionAgent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476A2352C65116031B903EF8 /* LocalReflectionAgent.swift */; };
 		616FC8FFE32FD5A4FB4419AF /* LocalDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22540591A09E84DA55BD14C1 /* LocalDatabase.swift */; };
 		645814A54D1C312FF64AEEAF /* OpenAIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EC1AC732FD9F0613A51AE3A /* OpenAIClient.swift */; };
+		671E9C64AD4C4194E312295B /* RewritePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D3369AF1A05A0C37FE51D9D /* RewritePanel.swift */; };
 		6AB2E0A837A9EF7A6822882C /* OwnphraseKeyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 13ED8A764A3E748AABEC4031 /* OwnphraseKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		73346F80DD6899F4C417DF87 /* LocalDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22540591A09E84DA55BD14C1 /* LocalDatabase.swift */; };
 		766DF5F730F4C28E8EF4FF33 /* LocalReflectionAgent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476A2352C65116031B903EF8 /* LocalReflectionAgent.swift */; };
@@ -85,6 +88,7 @@
 		609EBF498A6EFA2B7E810602 /* Typing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Typing.swift; sourceTree = "<group>"; };
 		692DAC3851A3519FA03E3E49 /* OwnphraseTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OwnphraseTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		6A9DEC8D0E71F11E1A990831 /* Notifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Notifications.swift; sourceTree = "<group>"; };
+		6D3369AF1A05A0C37FE51D9D /* RewritePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewritePanel.swift; sourceTree = "<group>"; };
 		6E319D733270243DF4F75E2D /* KeyRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyRow.swift; sourceTree = "<group>"; };
 		8325244EE53EBBDBDD3DF7F0 /* OpenAIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIClientTests.swift; sourceTree = "<group>"; };
 		8E52252784AB21E6155D88D1 /* APIKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIKeyStore.swift; sourceTree = "<group>"; };
@@ -92,6 +96,7 @@
 		9EC1AC732FD9F0613A51AE3A /* OpenAIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIClient.swift; sourceTree = "<group>"; };
 		A53716355A0F0C2872ACED5F /* LessonNotice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonNotice.swift; sourceTree = "<group>"; };
 		A8137D37CEB43594E16E4C1B /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		B87792050BC0DC09E19D3D96 /* RewritePanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewritePanelTests.swift; sourceTree = "<group>"; };
 		C3EDBCEEAE1424FC01D1F3DF /* RewriteSourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewriteSourceTests.swift; sourceTree = "<group>"; };
 		F06BB0DF8FDA647AF079FA05 /* RewriteSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewriteSource.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -103,6 +108,7 @@
 				2939CA1249B5A386BED4802B /* LearningLoopTests.swift */,
 				8325244EE53EBBDBDD3DF7F0 /* OpenAIClientTests.swift */,
 				4E8A77A54703E63802492062 /* OwnStoreTests.swift */,
+				B87792050BC0DC09E19D3D96 /* RewritePanelTests.swift */,
 				C3EDBCEEAE1424FC01D1F3DF /* RewriteSourceTests.swift */,
 			);
 			path = Tests;
@@ -135,6 +141,7 @@
 				57BD427DCD492BE6A52ECECE /* KeyboardViewController.swift */,
 				6E319D733270243DF4F75E2D /* KeyRow.swift */,
 				30F1B72767AD48E0184DF6AC /* Rewrite.swift */,
+				6D3369AF1A05A0C37FE51D9D /* RewritePanel.swift */,
 				609EBF498A6EFA2B7E810602 /* Typing.swift */,
 			);
 			path = Keyboard;
@@ -308,6 +315,7 @@
 				33E3C4599E8688080CD07326 /* OpenAIClient.swift in Sources */,
 				CB232C1FDC0810AA1F1C5AB3 /* OwnStore.swift in Sources */,
 				9D180B9ADC0A73B384A117E5 /* Rewrite.swift in Sources */,
+				10D34AB69CCB552289BD293B /* RewritePanel.swift in Sources */,
 				B47ED970AC8BAF701162BC19 /* RewriteSource.swift in Sources */,
 				79132625D6DF3946BC0F725F /* Typing.swift in Sources */,
 			);
@@ -338,6 +346,8 @@
 				E56E8AE70DB31EEFEDE20B74 /* LearningLoopTests.swift in Sources */,
 				AA8DAE88607A2D957C071D21 /* OpenAIClientTests.swift in Sources */,
 				8F3DC97ED12713B9A927D322 /* OwnStoreTests.swift in Sources */,
+				671E9C64AD4C4194E312295B /* RewritePanel.swift in Sources */,
+				038C4E18CE190A742FAA5381 /* RewritePanelTests.swift in Sources */,
 				C149168D759549FE94A79539 /* RewriteSourceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -509,6 +519,7 @@
 				CODE_SIGN_ENTITLEMENTS = BuildSupport/Ownphrase.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "BuildSupport/App-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -530,6 +541,7 @@
 				CODE_SIGN_ENTITLEMENTS = BuildSupport/Ownphrase.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "BuildSupport/App-Info.plist";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

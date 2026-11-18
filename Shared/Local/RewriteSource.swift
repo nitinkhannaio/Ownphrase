@@ -1,6 +1,7 @@
 import Foundation
 
 struct RewriteSource {
+    static let maximumCharacters = 4_000
     let document: UUID
     let text: String
     let selected: Bool
@@ -15,7 +16,7 @@ struct RewriteSource {
         let paragraph = visible.split(separator: "\n", omittingEmptySubsequences: false).last.map(String.init) ?? ""
         let candidate = selected ? selectedText : paragraph
         guard !candidate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              candidate.count <= 4000 else { return nil }
+              candidate.count <= Self.maximumCharacters else { return nil }
         self.document = document
         self.before = before
         self.after = after

@@ -14,11 +14,15 @@ final class KeyboardViewController: UIInputViewController {
     var letterKeys: [(String, UIButton)] = []
     var shiftButton: UIButton?
     var suggestionButtons: [UIButton] = []
-    var instruction: String?
     var request: Task<Void, Never>?
     var review: RewriteSource?
     var options: [RewriteOption] = []
-    var rewriteInstruction = ""
+    var optionIndex = 0
+    var panelActive = false
+    var previewingSource = false
+    weak var typingFeedback: UILabel?
+    var panelHost: UIViewController?
+    var selectionWasValid = false
 
     var keyHeight: NSLayoutConstraint?
     var areaTop: NSLayoutConstraint?
@@ -96,6 +100,10 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        if hasFullAccess, let defaults = UserDefaults(suiteName: "group.io.nitinkhanna.ownphrase"),
+           !defaults.bool(forKey: "lastSeenWithFullAccess") {
+            defaults.set(true, forKey: "lastSeenWithFullAccess")
+        }
         configureField()
         showKeys()
     }
@@ -112,10 +120,11 @@ final class KeyboardViewController: UIInputViewController {
             // A cursor move or host revision invalidates an unfinished sample.
             authored = ""
         }
-        if let review {
-            if review.document != textDocumentProxy.documentIdentifier { endReview() }
+        if let review, review.document != textDocumentProxy.documentIdentifier {
+            endReview()
             return
         }
+        if panelActive { refreshReplacementState(); return }
         if observedKeyboardType != textDocumentProxy.keyboardType {
             configureField()
             showKeys()
@@ -144,8 +153,26 @@ final class KeyboardViewController: UIInputViewController {
         updateCapitalization()
     }
 
+    override func selectionDidChange(_ textInput: UITextInput?) {
+        super.selectionDidChange(textInput)
+        refreshReplacementState()
+    }
+
     func clearContent() {
+        typingFeedback?.removeFromSuperview()
+        if let host = panelHost {
+            host.willMove(toParent: nil)
+            host.view.removeFromSuperview()
+            host.removeFromParent()
+            panelHost = nil
+        }
         stopRepeating()
+        content.isLayoutMarginsRelativeArrangement = false
+        content.directionalLayoutMargins = .zero
+        content.spacing = 6
+        content.alignment = .fill
+        content.distribution = .fill
+        keyRows = nil
         for view in content.arrangedSubviews { view.removeFromSuperview() }
         for view in toolbar.arrangedSubviews { view.removeFromSuperview() }
         letterKeys = []
@@ -174,6 +201,8 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     func showKeys() {
+        panelActive = false
+        previewingSource = false
         clearContent()
         toolbar.axis = .horizontal
         toolbar.spacing = 0
@@ -182,47 +211,35 @@ final class KeyboardViewController: UIInputViewController {
             toolbar.heightAnchor.constraint(equalToConstant: 42).isActive = true
         }
         content.addArrangedSubview(toolbar)
-        if instruction != nil {
-            let finish = button("Done", special: true) { [weak self] in self?.showReview() }
-            let label = UILabel()
-            label.font = .preferredFont(forTextStyle: .footnote)
-            label.text = instruction?.isEmpty == false ? instruction : "Type an instruction"
-            label.textAlignment = .center
-            label.accessibilityIdentifier = "rewriteInstruction"
-            toolbar.addArrangedSubview(label)
-            toolbar.addArrangedSubview(finish)
-        } else {
-            for index in 0..<3 {
-                let key = button("")
-                key.flat = true
-                key.titleLabel?.font = .systemFont(ofSize: 17)
-                key.setTitleColor(.label.withAlphaComponent(0.78), for: .normal)
-                toolbar.addArrangedSubview(key)
-                if let first = suggestionButtons.first { key.widthAnchor.constraint(equalTo: first.widthAnchor).isActive = true }
-                suggestionButtons.append(key)
-                if index < 2 {
-                    let line = UIView()
-                    line.backgroundColor = UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.23, alpha: 1) : UIColor(red: 208/255, green: 210/255, blue: 215/255, alpha: 1) }
-                    line.translatesAutoresizingMaskIntoConstraints = false
-                    key.addSubview(line)
-                    NSLayoutConstraint.activate([
-                        line.trailingAnchor.constraint(equalTo: key.trailingAnchor),
-                        line.centerYAnchor.constraint(equalTo: key.centerYAnchor),
-                        line.widthAnchor.constraint(equalToConstant: 1),
-                        line.heightAnchor.constraint(equalToConstant: 24)
-                    ])
-                }
-                key.addAction(UIAction { [weak self, weak key] _ in
-                    if let word = key?.currentTitle, !word.isEmpty { self?.acceptSuggestion(word) }
-                }, for: .touchUpInside)
+        for index in 0..<3 {
+            let key = button("")
+            key.flat = true
+            key.titleLabel?.font = .systemFont(ofSize: 17)
+            key.setTitleColor(UIColor { traits in
+                UIColor.label.resolvedColor(with: traits).withAlphaComponent(traits.accessibilityContrast == .high ? 1 : 0.78)
+            }, for: .normal)
+            toolbar.addArrangedSubview(key)
+            if let first = suggestionButtons.first { key.widthAnchor.constraint(equalTo: first.widthAnchor).isActive = true }
+            suggestionButtons.append(key)
+            if index < 2 {
+                let line = UIView()
+                line.backgroundColor = UIColor { $0.userInterfaceStyle == .dark ? UIColor(white: 0.23, alpha: 1) : UIColor(red: 208/255, green: 210/255, blue: 215/255, alpha: 1) }
+                line.translatesAutoresizingMaskIntoConstraints = false
+                key.addSubview(line)
+                NSLayoutConstraint.activate([
+                    line.trailingAnchor.constraint(equalTo: key.trailingAnchor),
+                    line.centerYAnchor.constraint(equalTo: key.centerYAnchor),
+                    line.widthAnchor.constraint(equalToConstant: 1),
+                    line.heightAnchor.constraint(equalToConstant: 24)
+                ])
             }
-            let rewrite = button("Rewrite", symbol: "wand.and.stars") { [weak self] in self?.beginRewrite() }
-            rewrite.flat = true
-            rewrite.tintColor = .secondaryLabel
-            rewrite.setPreferredSymbolConfiguration(.init(pointSize: 13, weight: .medium), forImageIn: .normal)
-            toolbar.addArrangedSubview(rewrite)
-            rewrite.widthAnchor.constraint(equalToConstant: 49.5).isActive = true
+            key.addAction(UIAction { [weak self, weak key] _ in
+                if let word = key?.currentTitle, !word.isEmpty { self?.acceptSuggestion(word) }
+            }, for: .touchUpInside)
         }
+        let rewrite = makeMagicControl()
+        toolbar.addArrangedSubview(rewrite)
+        rewrite.widthAnchor.constraint(equalToConstant: 49.5).isActive = true
         let rows = UIStackView()
         keyRows = rows
         rows.axis = .vertical
@@ -305,8 +322,9 @@ final class KeyboardViewController: UIInputViewController {
         case "return":
             return button(returnLabel, symbol: returnLabel == "return" ? "return" : nil, special: true) { [weak self] in
                 guard let self else { return }
-                if instruction != nil { showReview() }
-                else { commitComposition(); finishObservation(); type("\n") }
+                commitComposition()
+                finishObservation()
+                type("\n")
             }
         default:
             let key = button(name) { [weak self] in
@@ -334,7 +352,6 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     @objc func moveCursor(_ gesture: UILongPressGestureRecognizer) {
-        guard instruction == nil else { return }
         if gesture.state == .began { panOrigin = gesture.location(in: view).x; panOffset = 0; authored = ""; commitComposition() }
         let location = Int((gesture.location(in: view).x - panOrigin) / 8)
         if gesture.state == .changed && location != panOffset {

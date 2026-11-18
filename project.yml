@@ -14,6 +14,14 @@ targets:
     type: application
     platform: iOS
     sources: [App, Shared]
+    info:
+      path: BuildSupport/App-Info.plist
+      properties:
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleURLTypes:
+          - CFBundleURLName: io.nitinkhanna.ownphrase.setup
+            CFBundleURLSchemes: [ownphrase]
     settings:
       base:
         TARGETED_DEVICE_FAMILY: "1"
@@ -43,7 +51,7 @@ targets:
   OwnphraseTests:
     type: bundle.unit-test
     platform: iOS
-    sources: [Tests]
+    sources: [Tests, Keyboard/RewritePanel.swift]
     settings:
       base:
         TARGETED_DEVICE_FAMILY: "1"

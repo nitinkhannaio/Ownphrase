@@ -4,47 +4,25 @@ import UserNotifications
 
 struct SettingsView: View {
     @EnvironmentObject private var notebook: Notebook
+    @EnvironmentObject private var setup: KeyboardSetup
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var phase
 
     @State private var observesWriting = true
-    @State private var key = ""
     @State private var message: String?
-    @State private var confirmation: Confirmation?
+    @State private var confirmErase = false
     @State private var reminderEnabled = false
     @State private var reminderTime = Calendar.current.date(bySettingHour: 20, minute: 0, second: 0, of: Date()) ?? Date()
     @State private var reminderBusy = false
     @State private var notificationDenied = false
     @State private var notificationError: String?
 
-    private enum Confirmation { case erase, removeKey }
 
     var body: some View {
         Form {
-            Section("iPhone keyboard") {
-                Text("In Settings, open General → Keyboard → Keyboards → Add New Keyboard and choose Ownphrase. Tap Ownphrase and turn on Allow Full Access for rewrites and your notebook.")
-                Text("Touch and hold the globe in any text field to choose Ownphrase. To put it first in your keyboard list, use Edit on the Keyboards screen.")
-                    .foregroundStyle(.secondary)
-                Button("Open Settings") {
-                    if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
-                }
+            Section("Keyboard") {
+                Button("Keyboard setup and OpenAI key") { setup.route = .general }
                 NavigationLink("Try the keyboard") { PlaygroundView() }
-            }
-            Section {
-                if notebook.hasKey {
-                    Label("Key saved on this iPhone", systemImage: "key.fill")
-                }
-                SecureField(notebook.hasKey ? "Replacement OpenAI API key" : "OpenAI API key", text: $key)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .privacySensitive()
-                Button(notebook.hasKey ? "Replace key" : "Save key") { saveKey() }
-                    .disabled(key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                if notebook.hasKey {
-                    Button("Remove key", role: .destructive) { confirmation = .removeKey }
-                }
-            } header: { Text("OpenAI") } footer: {
-                Text("Rewrite sends the passage, your instruction, and learned writing preferences to OpenAI using your key. Your notebook is stored on this iPhone.")
             }
             Section {
                 Toggle("Daily lesson reminder", isOn: Binding(
@@ -84,7 +62,7 @@ struct SettingsView: View {
                 Text("Keep counts of writing patterns on this iPhone. Full draft text is saved only for rewrites you accept.")
             }
             Section("Local data") {
-                Button("Erase notebook and learned voice", role: .destructive) { confirmation = .erase }
+                Button("Erase notebook and learned voice", role: .destructive) { confirmErase = true }
             }
         }
         .navigationTitle("Settings")
@@ -96,45 +74,23 @@ struct SettingsView: View {
         .onChange(of: phase) { _, newValue in
             if newValue == .active { Task { await loadReminder() } }
         }
-        .onDisappear { key = "" }
-        .confirmationDialog(confirmation == .erase ? "Erase your notebook?" : "Remove your OpenAI key?",
-                            isPresented: Binding(get: { confirmation != nil }, set: { if !$0 { confirmation = nil } }),
-                            titleVisibility: .visible, presenting: confirmation) { action in
-            Button(action == .erase ? "Erase notebook" : "Remove key", role: .destructive) {
+        .confirmationDialog("Erase your notebook?", isPresented: $confirmErase, titleVisibility: .visible) {
+            Button("Erase notebook", role: .destructive) {
                 do {
-                    switch action {
-                    case .erase: try OwnStore().erase()
-                    case .removeKey: try APIKeyStore.remove()
-                    }
-                    key = ""
+                    try OwnStore().erase()
                     notebook.refresh()
                 } catch {
                     message = error.localizedDescription
                 }
             }
             Button("Cancel", role: .cancel) {}
-        } message: { action in
-            Text(action == .erase
-                 ? "This permanently erases saved drafts, accepted rewrites, lessons, and learned preferences from this iPhone."
-                 : "Rewrites will require a new key. Your notebook stays on this iPhone.")
+        } message: {
+            Text("This permanently erases saved drafts, accepted rewrites, lessons, and learned preferences from this iPhone.")
         }
         .alert("Ownphrase", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
             Button("OK") { message = nil }
         } message: {
             Text(message ?? "")
-        }
-    }
-
-    private func saveKey() {
-        do {
-            let value = key.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !value.isEmpty else { return }
-            try APIKeyStore.save(value)
-            key = ""
-            notebook.refresh()
-            message = "Key saved."
-        } catch {
-            message = error.localizedDescription
         }
     }
 
@@ -167,5 +123,114 @@ struct SettingsView: View {
             notificationError = error.localizedDescription
         }
         await loadReminder()
+    }
+}
+
+struct KeyboardSetupSheet: View {
+    let route: KeyboardSetup.Route
+    @EnvironmentObject private var setup: KeyboardSetup
+    @EnvironmentObject private var notebook: Notebook
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var phase
+    @State private var key = ""
+    @State private var feedback: String?
+    @State private var failure: String?
+    @State private var confirmRemove = false
+    @FocusState private var enteringKey: Bool
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if route == .general && !setup.hasUsedFullAccess {
+                    Section("Enable the keyboard") { activationSteps }
+                }
+                Section {
+                    SecureField(notebook.hasKey ? "Replacement OpenAI API key" : "OpenAI API key", text: $key)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .privacySensitive()
+                        .focused($enteringKey)
+                        .submitLabel(.done)
+                        .onSubmit { if !key.isEmpty { saveKey() } }
+                    Button(notebook.hasKey ? "Replace key" : "Save key") { saveKey() }
+                        .disabled(key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    if let feedback {
+                        Label(feedback, systemImage: "checkmark.circle.fill").foregroundStyle(.tint)
+                    } else if notebook.hasKey {
+                        Label("A key is saved on this iPhone.", systemImage: "key")
+                            .foregroundStyle(.secondary)
+                    }
+                    if notebook.hasKey {
+                        Button("Remove key", role: .destructive) { confirmRemove = true }
+                    }
+                    Link("Create or manage an OpenAI key", destination: URL(string: "https://platform.openai.com/api-keys")!)
+                    if let failure { Text(failure).foregroundStyle(.red) }
+                } footer: {
+                    Text("Ownphrase stores your key in this iPhone’s Keychain and uses it to send your passage, chosen tone, and voice preferences to OpenAI.")
+                }
+                if route == .openAI || setup.hasUsedFullAccess {
+                    Section {
+                        DisclosureGroup("Keyboard setup") {
+                            if setup.hasUsedFullAccess {
+                                Label("Keyboard used with Full Access", systemImage: "checkmark.circle")
+                                    .foregroundStyle(.secondary)
+                            }
+                            activationSteps
+                        }
+                    }
+                }
+            }
+            .navigationTitle(route == .openAI ? "Connect OpenAI" : "Keyboard setup")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
+        .onAppear {
+            do { try notebook.refreshKeyStatus() }
+            catch { failure = error.localizedDescription }
+        }
+        .onChange(of: phase) { _, next in
+            if next == .background { key = "" }
+        }
+        .onDisappear { key = "" }
+        .confirmationDialog("Remove your OpenAI key?", isPresented: $confirmRemove, titleVisibility: .visible) {
+            Button("Remove key", role: .destructive) { removeKey() }
+            Button("Cancel", role: .cancel) {}
+        } message: { Text("Rewrites will need a new key. Your notebook stays on this iPhone.") }
+    }
+
+    @ViewBuilder private var activationSteps: some View {
+        Text("In iPhone Settings, open General → Keyboard → Keyboards → Add New Keyboard. Choose Ownphrase, then turn on Allow Full Access.")
+        Text("Full Access lets Ownphrase use your OpenAI key for rewrites and save lessons in your local notebook.")
+            .foregroundStyle(.secondary)
+        Text("Hold the globe in a text field to choose Ownphrase. Use Edit in the Keyboards list to put it first.")
+        Button("Open Ownphrase settings") {
+            if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+        }
+    }
+
+    private func saveKey() {
+        do {
+            try APIKeyStore.save(key)
+            key = ""
+            enteringKey = false
+            try notebook.refreshKeyStatus()
+            failure = nil
+            feedback = "Key saved. Return to your draft to rewrite."
+        } catch {
+            failure = error.localizedDescription
+        }
+    }
+
+    private func removeKey() {
+        do {
+            try APIKeyStore.remove()
+            key = ""
+            try notebook.refreshKeyStatus()
+            failure = nil
+            feedback = "Key removed."
+        } catch {
+            failure = error.localizedDescription
+        }
     }
 }
